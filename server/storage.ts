@@ -9,8 +9,14 @@ import {
   type InsertAusencia,
   type Substituicao,
   type InsertSubstituicao,
+  professores,
+  disciplinas,
+  turmas,
+  ausencias,
+  substituicoes,
 } from "@shared/schema";
-import { randomUUID } from "crypto";
+import { db } from "./db";
+import { eq, and, sql } from "drizzle-orm";
 
 export interface IStorage {
   // Professores
@@ -51,201 +57,121 @@ export interface IStorage {
   deleteSubstituicao(id: string): Promise<boolean>;
 }
 
-export class MemStorage implements IStorage {
-  private professores: Map<string, Professor>;
-  private disciplinas: Map<string, Disciplina>;
-  private turmas: Map<string, Turma>;
-  private ausencias: Map<string, Ausencia>;
-  private substituicoes: Map<string, Substituicao>;
-
-  constructor() {
-    this.professores = new Map();
-    this.disciplinas = new Map();
-    this.turmas = new Map();
-    this.ausencias = new Map();
-    this.substituicoes = new Map();
-    this.seedData();
-  }
-
-  private seedData() {
-    // Seed Professores
-    const prof1 = this.createProfessorSync({
-      nome: "Maria Silva",
-      areaConhecimento: "Matemática",
-    });
-    const prof2 = this.createProfessorSync({
-      nome: "João Santos",
-      areaConhecimento: "Matemática",
-    });
-    const prof3 = this.createProfessorSync({
-      nome: "Ana Oliveira",
-      areaConhecimento: "História",
-    });
-    const prof4 = this.createProfessorSync({
-      nome: "Pedro Costa",
-      areaConhecimento: "Ciências",
-    });
-
-    // Seed Disciplinas
-    this.createDisciplinaSync({
-      nome: "Matemática I",
-      areaConhecimento: "Matemática",
-    });
-    this.createDisciplinaSync({
-      nome: "Álgebra",
-      areaConhecimento: "Matemática",
-    });
-    this.createDisciplinaSync({
-      nome: "História do Brasil",
-      areaConhecimento: "História",
-    });
-    this.createDisciplinaSync({
-      nome: "Biologia",
-      areaConhecimento: "Ciências",
-    });
-
-    // Seed Turmas
-    this.createTurmaSync({ nome: "1º Ano A" });
-    this.createTurmaSync({ nome: "2º Ano B" });
-    this.createTurmaSync({ nome: "3º Ano C" });
-  }
-
-  private createProfessorSync(professor: InsertProfessor): Professor {
-    const id = randomUUID();
-    const newProfessor: Professor = { ...professor, id, cargaHoraria: 0 };
-    this.professores.set(id, newProfessor);
-    return newProfessor;
-  }
-
-  private createDisciplinaSync(disciplina: InsertDisciplina): Disciplina {
-    const id = randomUUID();
-    const newDisciplina: Disciplina = { ...disciplina, id };
-    this.disciplinas.set(id, newDisciplina);
-    return newDisciplina;
-  }
-
-  private createTurmaSync(turma: InsertTurma): Turma {
-    const id = randomUUID();
-    const newTurma: Turma = { ...turma, id };
-    this.turmas.set(id, newTurma);
-    return newTurma;
-  }
-
+export class DatabaseStorage implements IStorage {
   // Professores
   async getAllProfessores(): Promise<Professor[]> {
-    return Array.from(this.professores.values());
+    return await db.select().from(professores);
   }
 
   async getProfessor(id: string): Promise<Professor | undefined> {
-    return this.professores.get(id);
+    const [professor] = await db.select().from(professores).where(eq(professores.id, id));
+    return professor;
   }
 
   async createProfessor(professor: InsertProfessor): Promise<Professor> {
-    const id = randomUUID();
-    const newProfessor: Professor = { ...professor, id, cargaHoraria: 0 };
-    this.professores.set(id, newProfessor);
+    const [newProfessor] = await db.insert(professores).values(professor).returning();
     return newProfessor;
   }
 
   async updateProfessor(id: string, professor: Partial<InsertProfessor>): Promise<Professor | undefined> {
-    const existing = this.professores.get(id);
-    if (!existing) return undefined;
-    const updated = { ...existing, ...professor };
-    this.professores.set(id, updated);
+    const [updated] = await db
+      .update(professores)
+      .set(professor)
+      .where(eq(professores.id, id))
+      .returning();
     return updated;
   }
 
   async deleteProfessor(id: string): Promise<boolean> {
-    return this.professores.delete(id);
+    const [deleted] = await db.delete(professores).where(eq(professores.id, id)).returning();
+    return !!deleted;
   }
 
   async updateCargaHoraria(id: string, novaCarga: number): Promise<void> {
-    const professor = this.professores.get(id);
-    if (professor) {
-      professor.cargaHoraria = novaCarga;
-      this.professores.set(id, professor);
-    }
+    await db.update(professores).set({ cargaHoraria: novaCarga }).where(eq(professores.id, id));
   }
 
   // Disciplinas
   async getAllDisciplinas(): Promise<Disciplina[]> {
-    return Array.from(this.disciplinas.values());
+    return await db.select().from(disciplinas);
   }
 
   async getDisciplina(id: string): Promise<Disciplina | undefined> {
-    return this.disciplinas.get(id);
+    const [disciplina] = await db.select().from(disciplinas).where(eq(disciplinas.id, id));
+    return disciplina;
   }
 
   async createDisciplina(disciplina: InsertDisciplina): Promise<Disciplina> {
-    const id = randomUUID();
-    const newDisciplina: Disciplina = { ...disciplina, id };
-    this.disciplinas.set(id, newDisciplina);
+    const [newDisciplina] = await db.insert(disciplinas).values(disciplina).returning();
     return newDisciplina;
   }
 
   async updateDisciplina(id: string, disciplina: Partial<InsertDisciplina>): Promise<Disciplina | undefined> {
-    const existing = this.disciplinas.get(id);
-    if (!existing) return undefined;
-    const updated = { ...existing, ...disciplina };
-    this.disciplinas.set(id, updated);
+    const [updated] = await db
+      .update(disciplinas)
+      .set(disciplina)
+      .where(eq(disciplinas.id, id))
+      .returning();
     return updated;
   }
 
   async deleteDisciplina(id: string): Promise<boolean> {
-    return this.disciplinas.delete(id);
+    const [deleted] = await db.delete(disciplinas).where(eq(disciplinas.id, id)).returning();
+    return !!deleted;
   }
 
   // Turmas
   async getAllTurmas(): Promise<Turma[]> {
-    return Array.from(this.turmas.values());
+    return await db.select().from(turmas);
   }
 
   async getTurma(id: string): Promise<Turma | undefined> {
-    return this.turmas.get(id);
+    const [turma] = await db.select().from(turmas).where(eq(turmas.id, id));
+    return turma;
   }
 
   async createTurma(turma: InsertTurma): Promise<Turma> {
-    const id = randomUUID();
-    const newTurma: Turma = { ...turma, id };
-    this.turmas.set(id, newTurma);
+    const [newTurma] = await db.insert(turmas).values(turma).returning();
     return newTurma;
   }
 
   async updateTurma(id: string, turma: Partial<InsertTurma>): Promise<Turma | undefined> {
-    const existing = this.turmas.get(id);
-    if (!existing) return undefined;
-    const updated = { ...existing, ...turma };
-    this.turmas.set(id, updated);
+    const [updated] = await db
+      .update(turmas)
+      .set(turma)
+      .where(eq(turmas.id, id))
+      .returning();
     return updated;
   }
 
   async deleteTurma(id: string): Promise<boolean> {
-    return this.turmas.delete(id);
+    const [deleted] = await db.delete(turmas).where(eq(turmas.id, id)).returning();
+    return !!deleted;
   }
 
   // Ausências
   async getAllAusencias(): Promise<Ausencia[]> {
-    return Array.from(this.ausencias.values());
+    return await db.select().from(ausencias);
   }
 
   async getAusenciasBySemana(semana: number, ano: number): Promise<Ausencia[]> {
-    return Array.from(this.ausencias.values()).filter(
-      (a) => a.semana === semana && a.ano === ano
-    );
+    return await db
+      .select()
+      .from(ausencias)
+      .where(and(eq(ausencias.semana, semana), eq(ausencias.ano, ano)));
   }
 
   async getAusencia(id: string): Promise<Ausencia | undefined> {
-    return this.ausencias.get(id);
+    const [ausencia] = await db.select().from(ausencias).where(eq(ausencias.id, id));
+    return ausencia;
   }
 
   async createAusencia(ausencia: InsertAusencia): Promise<Ausencia> {
-    const id = randomUUID();
-    const newAusencia: Ausencia = { ...ausencia, id };
-    this.ausencias.set(id, newAusencia);
-
+    const [newAusencia] = await db.insert(ausencias).values(ausencia).returning();
+    
     // Criar substituição pendente automaticamente
     await this.createSubstituicao({
-      ausenciaId: id,
+      ausenciaId: newAusencia.id,
       professorSubstitutoId: null,
       status: "pendente",
       mensagem: null,
@@ -255,56 +181,47 @@ export class MemStorage implements IStorage {
   }
 
   async deleteAusencia(id: string): Promise<boolean> {
-    // Deletar também a substituição associada
-    const substituicoes = Array.from(this.substituicoes.values());
-    const substituicao = substituicoes.find((s) => s.ausenciaId === id);
-    if (substituicao) {
-      this.substituicoes.delete(substituicao.id);
-    }
-    return this.ausencias.delete(id);
+    await db.delete(substituicoes).where(eq(substituicoes.ausenciaId, id));
+    const [deleted] = await db.delete(ausencias).where(eq(ausencias.id, id)).returning();
+    return !!deleted;
   }
 
   // Substituições
   async getAllSubstituicoes(): Promise<Substituicao[]> {
-    return Array.from(this.substituicoes.values());
+    return await db.select().from(substituicoes);
   }
 
   async getSubstituicao(id: string): Promise<Substituicao | undefined> {
-    return this.substituicoes.get(id);
+    const [substituicao] = await db.select().from(substituicoes).where(eq(substituicoes.id, id));
+    return substituicao;
   }
 
   async getSubstituicaoBySemana(semana: number, ano: number): Promise<Substituicao[]> {
-    const ausencias = await this.getAusenciasBySemana(semana, ano);
-    const ausenciaIds = new Set(ausencias.map((a) => a.id));
-    return Array.from(this.substituicoes.values()).filter((s) =>
-      ausenciaIds.has(s.ausenciaId)
-    );
+    const ausenciasInSemana = await this.getAusenciasBySemana(semana, ano);
+    if (ausenciasInSemana.length === 0) return [];
+    
+    const ids = ausenciasInSemana.map(a => a.id);
+    return await db.select().from(substituicoes).where(sql`${substituicoes.ausenciaId} IN ${ids}`);
   }
 
   async createSubstituicao(substituicao: InsertSubstituicao): Promise<Substituicao> {
-    const id = randomUUID();
-    const newSubstituicao: Substituicao = {
-      id,
-      ausenciaId: substituicao.ausenciaId,
-      professorSubstitutoId: substituicao.professorSubstitutoId ?? null,
-      status: substituicao.status ?? "pendente",
-      mensagem: substituicao.mensagem ?? null,
-    };
-    this.substituicoes.set(id, newSubstituicao);
+    const [newSubstituicao] = await db.insert(substituicoes).values(substituicao).returning();
     return newSubstituicao;
   }
 
   async updateSubstituicao(id: string, substituicao: Partial<InsertSubstituicao>): Promise<Substituicao | undefined> {
-    const existing = this.substituicoes.get(id);
-    if (!existing) return undefined;
-    const updated = { ...existing, ...substituicao };
-    this.substituicoes.set(id, updated);
+    const [updated] = await db
+      .update(substituicoes)
+      .set(substituicao)
+      .where(eq(substituicoes.id, id))
+      .returning();
     return updated;
   }
 
   async deleteSubstituicao(id: string): Promise<boolean> {
-    return this.substituicoes.delete(id);
+    const [deleted] = await db.delete(substituicoes).where(eq(substituicoes.id, id)).returning();
+    return !!deleted;
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
